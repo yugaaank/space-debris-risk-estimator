@@ -8,11 +8,12 @@ import { OrbitPath } from './OrbitPath';
 import { SatelliteObject } from './SatelliteObject';
 import { DebrisObject } from './DebrisObject';
 import { ApproachLine } from './ApproachLine';
+import { EquatorialGrid } from './EquatorialGrid';
 import { useSimulationStore } from '../../store/simulationStore';
 import { propagatePosition } from '../../utils/orbitalMath';
 import type { RiskLevel } from '../../types';
 
-// ── Animation controller inside Canvas ───────────────────────────────────────
+// ── Animation controller ──────────────────────────────────────────────────────
 function SimulationAnimator() {
   const { playState, simulationTime, playbackSpeed, getWindowSeconds, setSimulationTime, setPlayState } =
     useSimulationStore();
@@ -35,11 +36,13 @@ function SimulationAnimator() {
   return null;
 }
 
-// ── Camera focus helper ───────────────────────────────────────────────────────
+// ── Smooth camera controller ──────────────────────────────────────────────────
 function CameraController() {
   const { camera } = useThree();
   const { selectedObjectId, result } = useSimulationStore();
   const prevSelected = useRef<string | null>(null);
+  const targetPos = useRef<THREE.Vector3 | null>(null);
+  const isMoving = useRef(false);
 
   useEffect(() => {
     if (!selectedObjectId || !result || selectedObjectId === prevSelected.current) return;
@@ -56,11 +59,20 @@ function CameraController() {
       0,
     );
     const target = new THREE.Vector3(x * KM_SCALE, y * KM_SCALE, z * KM_SCALE);
-    const distance = target.length() + 5;
+    const distance = target.length() + 8;
     const dir = target.clone().normalize();
-    camera.position.copy(dir.multiplyScalar(distance + 3));
+    targetPos.current = dir.multiplyScalar(distance);
+    isMoving.current = true;
+  }, [selectedObjectId, result]);
+
+  useFrame(() => {
+    if (!isMoving.current || !targetPos.current) return;
+    camera.position.lerp(targetPos.current, 0.04);
+    if (camera.position.distanceTo(targetPos.current) < 0.05) {
+      isMoving.current = false;
+    }
     camera.lookAt(0, 0, 0);
-  }, [selectedObjectId, result, camera]);
+  });
 
   return null;
 }
@@ -73,6 +85,7 @@ function SceneContents() {
     selectedObjectId,
     showOrbits,
     showApproachLines,
+    showGrid,
     setSelectedObject,
   } = useSimulationStore();
 
@@ -81,12 +94,15 @@ function SceneContents() {
 
   return (
     <>
-      <ambientLight intensity={0.25} color="#152238" />
-      <directionalLight position={[60, 25, 45]} intensity={2.2} color="#fffdf6" castShadow />
-      <directionalLight position={[-40, -15, -35]} intensity={0.12} color="#0c1828" />
+      <ambientLight intensity={0.2} color="#101828" />
+      <directionalLight position={[60, 25, 45]} intensity={2.4} color="#fffdf6" castShadow />
+      <directionalLight position={[-40, -15, -35]} intensity={0.1} color="#0c1828" />
 
       <Starfield />
       <Earth />
+
+      {/* Equatorial grid */}
+      {showGrid && <EquatorialGrid />}
 
       {/* Orbit paths */}
       {showOrbits && result && result.orbit_paths.map(path => {
@@ -160,11 +176,12 @@ export function OrbitalScene() {
         enableZoom={true}
         enableRotate={true}
         minDistance={8}
-        maxDistance={100}
-        zoomSpeed={0.8}
-        rotateSpeed={0.6}
-        dampingFactor={0.05}
+        maxDistance={120}
+        zoomSpeed={0.7}
+        rotateSpeed={0.55}
+        dampingFactor={0.06}
         enableDamping
+        makeDefault
       />
       <SceneContents />
     </Canvas>

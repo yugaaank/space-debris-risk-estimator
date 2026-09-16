@@ -348,7 +348,7 @@ export function ObjectsPage() {
                   type="text"
                   value={newObj.object_id}
                   onChange={e => setNewObj({ ...newObj, object_id: e.target.value.toUpperCase() })}
-                  className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                  className="input-field"
                 />
               </div>
               <div>
@@ -358,7 +358,7 @@ export function ObjectsPage() {
                   type="text"
                   value={newObj.name}
                   onChange={e => setNewObj({ ...newObj, name: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                  className="input-field"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -369,7 +369,7 @@ export function ObjectsPage() {
                     type="number"
                     value={newObj.altitude_km}
                     onChange={e => setNewObj({ ...newObj, altitude_km: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                    className="input-field"
                   />
                 </div>
                 <div>
@@ -380,7 +380,7 @@ export function ObjectsPage() {
                     step="0.1"
                     value={newObj.inclination_deg}
                     onChange={e => setNewObj({ ...newObj, inclination_deg: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                    className="input-field"
                   />
                 </div>
               </div>
@@ -391,7 +391,7 @@ export function ObjectsPage() {
                     type="number"
                     value={newObj.phase_deg}
                     onChange={e => setNewObj({ ...newObj, phase_deg: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                    className="input-field"
                   />
                 </div>
                 <div>
@@ -400,7 +400,7 @@ export function ObjectsPage() {
                     type="number"
                     value={newObj.raan_deg}
                     onChange={e => setNewObj({ ...newObj, raan_deg: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                    className="input-field"
                   />
                 </div>
               </div>
@@ -409,7 +409,7 @@ export function ObjectsPage() {
                 <select
                   value={newObj.object_type}
                   onChange={e => setNewObj({ ...newObj, object_type: e.target.value as any })}
-                  className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200"
+                  className="input-field"
                 >
                   <option value="DEBRIS">DEBRIS</option>
                   <option value="SATELLITE">SATELLITE</option>

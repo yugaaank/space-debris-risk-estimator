@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSimulationStore } from '../store/simulationStore';
 import { useSimulation } from '../hooks/useSimulation';
 import { KpiCards } from '../components/dashboard/KpiCards';
@@ -12,10 +12,19 @@ import { CsvUpload } from '../components/forms/CsvUpload';
 import type { OrbitalObjectInput } from '../types';
 
 export function RiskAnalysisPage() {
-  const { result, status, config, getSelectedRisk } = useSimulationStore();
+  const { result, status, error, config, getSelectedRisk } = useSimulationStore();
   const { runDemo, runCustom } = useSimulation();
   const [customDebris, setCustomDebris] = useState<OrbitalObjectInput[] | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'table' | 'configure'>('overview');
+
+  // Auto-initialize demo simulation if empty
+  const hasAutoLoaded = useRef(false);
+  useEffect(() => {
+    if (!hasAutoLoaded.current && status === 'idle' && !result) {
+      hasAutoLoaded.current = true;
+      runDemo();
+    }
+  }, [status, result, runDemo]);
 
   const selectedRisk = getSelectedRisk();
 
@@ -70,16 +79,31 @@ export function RiskAnalysisPage() {
           </div>
         )}
 
+        {/* Error banner */}
+        {error && (
+          <div className="glass-panel flex items-center gap-3 border-red-500/30 bg-red-950/20">
+            <span className="text-red-400 text-xl">⚠</span>
+            <div>
+              <p className="text-red-300 font-mono text-sm">Simulation Error</p>
+              <p className="text-gray-400 font-mono text-xs">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <KpiCards stats={result?.stats ?? null} />
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-800">
+        {/* Tabs - Liquid Glass Segmented Control */}
+        <div className="flex gap-1.5 p-1 rounded-full bg-white/[0.04] border border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] w-fit backdrop-blur-md">
           {(['overview', 'table', 'configure'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-xs font-mono uppercase tracking-wider transition-all border-b-2 -mb-px ${activeTab === tab ? 'border-blue-400 text-blue-300' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+              className={`px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                activeTab === tab
+                  ? 'bg-gradient-to-b from-cyan-400/30 to-cyan-600/20 border border-cyan-400/50 text-cyan-200 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_10px_rgba(6,182,212,0.25)]'
+                  : 'border border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]'
+              }`}
             >
               {tab}
             </button>

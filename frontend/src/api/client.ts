@@ -5,8 +5,18 @@ import type {
   HealthStatus,
 } from '../types';
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
-const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
+export const PRODUCTION_API_URL = 'https://orbital-shield-api.onrender.com';
+
+// Priority:
+// 1. Explicit environment variable (VITE_API_BASE_URL / VITE_API_URL)
+// 2. In production builds (!import.meta.env.DEV), default to live deployed Render backend
+// 3. In local development (DEV mode), default to empty string to use Vite proxy
+const rawBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? '' : PRODUCTION_API_URL);
+
+const BASE_URL = (rawBaseUrl || PRODUCTION_API_URL).replace(/\/+$/, '');
 
 const api = axios.create({
   baseURL: BASE_URL,
