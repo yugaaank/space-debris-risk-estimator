@@ -81,7 +81,7 @@ export function SimulationPage() {
 
   const criticalCount = useMemo(() => {
     if (!simResult) return 0;
-    return simResult.risks.filter(r => r.risk_level === 'critical').length;
+    return simResult.risk_results.filter(r => r.risk_level === 'critical').length;
   }, [simResult]);
 
   return (
@@ -96,7 +96,7 @@ export function SimulationPage() {
             'text-[var(--dim)]'
           }`}>
             {simStatus === 'running' ? 'COMPUTING' :
-             simStatus === 'complete' ? `${simResult?.risks?.length ?? 0} RISKS` :
+             simStatus === 'complete' ? `${simResult?.risk_results?.length ?? 0} RISKS` :
              'IDLE'}
           </span>
         </div>

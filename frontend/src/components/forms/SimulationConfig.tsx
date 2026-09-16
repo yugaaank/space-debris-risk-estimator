@@ -27,8 +27,8 @@ export function SimulationConfigPanel() {
     if (!result) return null;
     return {
       total: result.total_risks_detected,
-      critical: result.risks.filter((r: any) => r.risk_level === 'critical').length,
-      high: result.risks.filter((r: any) => r.risk_level === 'high').length,
+      critical: result.risk_results.filter((r: any) => r.risk_level === 'critical').length,
+      high: result.risk_results.filter((r: any) => r.risk_level === 'high').length,
     };
   }, [result]);
 
@@ -38,8 +38,8 @@ export function SimulationConfigPanel() {
       100,
       Math.round(
         (result.total_risks_detected * 8) +
-        (result.risks.filter((r: any) => r.risk_level === 'critical').length * 15) +
-        (result.risks.filter((r: any) => r.risk_level === 'high').length * 10)
+        (result.risk_results.filter((r: any) => r.risk_level === 'critical').length * 15) +
+        (result.risk_results.filter((r: any) => r.risk_level === 'high').length * 10)
       )
     );
   }, [result]);

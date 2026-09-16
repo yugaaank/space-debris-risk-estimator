@@ -47,7 +47,7 @@ export function Navbar() {
 
   const simLabel =
     status === 'running' ? 'COMPUTING' :
-    status === 'complete' ? `${result?.risks?.length ?? 0} RISKS` :
+    status === 'complete' ? `${result?.risk_results?.length ?? 0} RISKS` :
     status === 'error' ? 'ERROR' : 'READY';
 
   return (

@@ -1,31 +1,32 @@
-import type { CollisionRisk } from '../../types';
+import type { RiskEntry } from '../../types';
 import { RiskBadge } from './RiskBadge';
 
 interface Props {
-  risks: CollisionRisk[];
+  risks: RiskEntry[];
   showObject?: boolean;
   compact?: boolean;
 }
 
-function formatTime(t?: string) {
-  if (!t) return '—';
-  return t.replace('T', ' ').slice(0, 19);
+function formatTime(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export function RiskTable({ risks, showObject = false, compact = false }: Props) {
   return (
-    <div className="overflow-auto terminal-border">
+    <div className="overflow-auto border border-[var(--border)]">
       <table>
         <thead>
           <tr>
             {showObject && <th>OBJECT</th>}
             {showObject && <th>NAME</th>}
-            <th>EVENT TIME</th>
+            <th>TCA</th>
             <th>RISK</th>
             <th className="text-right">DISTANCE</th>
             <th className="text-right">RELATIVE V</th>
-            {!compact && <th className="text-right">PROB.</th>}
-            {!compact && <th>TYPE</th>}
+            {!compact && <th className="text-right">SCORE</th>}
           </tr>
         </thead>
         <tbody>
@@ -34,27 +35,24 @@ export function RiskTable({ risks, showObject = false, compact = false }: Props)
               {showObject && (
                 <>
                   <td className="text-[var(--dim)]">{risk.object_id}</td>
-                  <td>{risk.object_name ?? risk.object_id}</td>
+                  <td>{risk.name}</td>
                 </>
               )}
-              <td className="text-[var(--dim)]">{formatTime(risk.closest_approach_time)}</td>
+              <td className="text-[var(--dim)]">{risk.tca_label}</td>
               <td><RiskBadge level={risk.risk_level} /></td>
-              <td className="text-right font-bold">{risk.miss_distance_km.toFixed(1)} km</td>
+              <td className="text-right font-bold">{risk.min_distance_km.toFixed(1)} km</td>
               <td className="text-right font-bold">{risk.relative_velocity_km_s.toFixed(2)} km/s</td>
               {!compact && (
-                <>
-                  <td className="text-right text-[var(--dim)]">
-                    {risk.collision_probability.toExponential(2)}
-                  </td>
-                  <td className="text-[var(--dim)]">{risk.conjunction_type}</td>
-                </>
+                <td className="text-right text-[var(--dim)]">
+                  {risk.risk_score.toFixed(1)}
+                </td>
               )}
             </tr>
           ))}
           {risks.length === 0 && (
             <tr>
               <td
-                colSpan={showObject ? 9 : 7}
+                colSpan={showObject ? 7 : 5}
                 className="text-center text-[var(--dim)] py-8"
               >
                 NO DATA AVAILABLE

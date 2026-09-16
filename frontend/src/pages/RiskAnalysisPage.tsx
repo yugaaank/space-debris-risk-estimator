@@ -13,15 +13,15 @@ export function RiskAnalysisPage() {
     return {
       'Total Objects': result.total_objects_analyzed,
       'Risks Found': result.total_risks_detected,
-      'Critical': result.risks.filter(r => r.risk_level === 'critical').length,
-      'High': result.risks.filter(r => r.risk_level === 'high').length,
-      'Moderate': result.risks.filter(r => r.risk_level === 'moderate').length,
-      'Low': result.risks.filter(r => r.risk_level === 'low').length,
-      'Min Distance': result.risks.length > 0
-        ? `${Math.min(...result.risks.map(r => r.miss_distance_km)).toFixed(1)} km`
+      'Critical': result.risk_results.filter(r => r.risk_level === 'critical').length,
+      'High': result.risk_results.filter(r => r.risk_level === 'high').length,
+      'Moderate': result.risk_results.filter(r => r.risk_level === 'moderate').length,
+      'Low': result.risk_results.filter(r => r.risk_level === 'low').length,
+      'Min Distance': result.risk_results.length > 0
+        ? `${Math.min(...result.risk_results.map(r => r.min_distance_km)).toFixed(1)} km`
         : '—',
-      'Max Velocity': result.risks.length > 0
-        ? `${Math.max(...result.risks.map(r => r.relative_velocity_km_s)).toFixed(2)} km/s`
+      'Max Velocity': result.risk_results.length > 0
+        ? `${Math.max(...result.risk_results.map(r => r.relative_velocity_km_s)).toFixed(2)} km/s`
         : '—',
     };
   }, [result]);
@@ -29,8 +29,8 @@ export function RiskAnalysisPage() {
   const riskDistribution = useMemo(() => {
     if (!result) return null;
     const counts = { critical: 0, high: 0, moderate: 0, low: 0 };
-    result.risks.forEach(r => { counts[r.risk_level]++; });
-    const total = result.risks.length || 1;
+    result.risk_results.forEach(r => { counts[r.risk_level.toLowerCase() as keyof typeof counts]++; });
+    const total = result.risk_results.length || 1;
     return {
       critical: Math.round((counts.critical / total) * 100),
       high: Math.round((counts.high / total) * 100),
@@ -139,7 +139,7 @@ export function RiskAnalysisPage() {
             {/* Risk Table */}
             <div>
               <p className="section-title">RISK TABLE</p>
-              <RiskTable risks={result.risks} compact={false} />
+              <RiskTable risks={result.risk_results} compact={false} />
             </div>
           </>
         )}
