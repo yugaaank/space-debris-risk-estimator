@@ -8,7 +8,6 @@ interface SystemState {
   lastChecked: Date | null;
 }
 
-// Shared health state (singleton pattern for cross-component use)
 let cachedState: SystemState = { status: 'checking', health: null, lastChecked: null };
 const listeners = new Set<(s: SystemState) => void>();
 
@@ -26,12 +25,9 @@ async function checkHealth() {
     cachedState = { status: 'offline', health: null, lastChecked: new Date() };
   }
   notifyListeners();
-
-  // Schedule next check every 30s
   checkTimer = setTimeout(checkHealth, 30_000);
 }
 
-// Start polling immediately
 checkHealth();
 
 export function useSystemStatus() {
@@ -53,21 +49,14 @@ export function useSystemStatus() {
   return { ...state, retry };
 }
 
-// Compact status display for navbar
 export function SystemStatusCompact() {
   const { status, health } = useSystemStatus();
 
-  const color =
-    status === 'online' ? 'text-emerald-400' :
-    status === 'waking' ? 'text-yellow-400' :
-    status === 'checking' ? 'text-blue-400' :
-    'text-red-400';
-
   const dotClass =
-    status === 'online' ? 'status-dot-green' :
-    status === 'waking' ? 'status-dot-yellow' :
-    status === 'checking' ? 'status-dot-yellow' :
-    'status-dot-red';
+    status === 'online' ? 'status-dot status-dot-green' :
+    status === 'waking' ? 'status-dot status-dot-yellow' :
+    status === 'checking' ? 'status-dot status-dot-yellow' :
+    'status-dot status-dot-red';
 
   const label =
     status === 'online' ? 'ONLINE' :
@@ -78,11 +67,16 @@ export function SystemStatusCompact() {
   return (
     <div className="flex items-center gap-2">
       <span className={dotClass} />
-      <span className={`text-[10px] font-mono font-bold tracking-widest ${color}`}>
+      <span className={`text-[10px] font-bold ${
+        status === 'online' ? 'text-[#22c55e]' :
+        status === 'waking' ? 'text-[var(--high)]' :
+        status === 'checking' ? 'text-[var(--high)]' :
+        'text-[var(--critical)]'
+      }`}>
         {label}
       </span>
       {status === 'online' && health && (
-        <span className="text-[10px] font-mono text-gray-600">
+        <span className="text-[10px] text-[var(--dim)]">
           {health.tracked_objects} RSOs
         </span>
       )}
@@ -90,30 +84,28 @@ export function SystemStatusCompact() {
   );
 }
 
-// Full status panel
 export function SystemStatusPanel() {
   const { status, health, retry } = useSystemStatus();
 
   const isOnline = status === 'online';
 
   return (
-    <div className="mission-panel p-3 space-y-2 min-w-[200px]">
-      <p className="section-label text-[10px]">System Status</p>
-      <div className="space-y-1.5 text-[11px] font-mono">
+    <div className="terminal-border p-3 min-w-[200px] bg-[var(--bg)]">
+      <p className="section-title text-[10px]">SYSTEM STATUS</p>
+      <div className="space-y-1.5 text-[11px]">
         {[
-          { label: 'Backend API', value: isOnline ? 'ONLINE' : (status === 'checking' ? 'CHECKING' : 'OFFLINE') },
-          { label: 'Orbital Engine', value: health?.orbital_engine?.toUpperCase() ?? '—' },
-          { label: 'Risk Engine', value: health?.risk_engine?.toUpperCase() ?? '—' },
-          { label: 'Tracked Objects', value: health ? `${health.tracked_objects} RSOs` : '—' },
+          { label: 'BACKEND_API', value: isOnline ? 'ONLINE' : (status === 'checking' ? 'CHECKING' : 'OFFLINE') },
+          { label: 'ORBITAL_ENGINE', value: health?.orbital_engine?.toUpperCase() ?? '—' },
+          { label: 'RISK_ENGINE', value: health?.risk_engine?.toUpperCase() ?? '—' },
+          { label: 'TRACKED_OBJS', value: health ? `${health.tracked_objects}` : '—' },
         ].map(({ label, value }) => (
-          <div key={label} className="flex justify-between items-center">
-            <span className="text-gray-500">{label}</span>
+          <div key={label} className="flex justify-between">
+            <span className="text-[var(--dim)]">{label}</span>
             <span className={
-              value === 'ONLINE' || value === 'ONLINE' || value.includes('RSOs')
-                ? 'text-emerald-400 font-semibold'
-                : value === 'OFFLINE' ? 'text-red-400 font-semibold'
-                : value === 'CHECKING' ? 'text-yellow-400'
-                : 'text-gray-300'
+              value === 'ONLINE' ? 'text-[#22c55e] font-bold' :
+              value === 'OFFLINE' ? 'text-[var(--critical)] font-bold' :
+              value === 'CHECKING' ? 'text-[var(--high)]' :
+              'text-[var(--fg)]'
             }>{value}</span>
           </div>
         ))}
@@ -121,9 +113,9 @@ export function SystemStatusPanel() {
       {!isOnline && status !== 'checking' && (
         <button
           onClick={retry}
-          className="btn-secondary w-full text-[10px] py-1 mt-1"
+          className="btn-terminal w-full text-[10px] mt-2"
         >
-          {status === 'waking' ? '⟳ Waking...' : '⟳ Retry Connection'}
+          {status === 'waking' ? '> WAKING...' : '> RETRY'}
         </button>
       )}
     </div>

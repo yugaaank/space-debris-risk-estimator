@@ -1,168 +1,148 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useSimulationStore } from '../store/simulationStore';
-import { useSimulation } from '../hooks/useSimulation';
-import { KpiCards } from '../components/dashboard/KpiCards';
-import { RiskDistributionChart } from '../components/dashboard/RiskDistributionChart';
-import { ApproachTimeline } from '../components/dashboard/ApproachTimeline';
-import { DistanceGraph } from '../components/dashboard/DistanceGraph';
+import { RiskBadge } from '../components/risk/RiskBadge';
 import { RiskTable } from '../components/risk/RiskTable';
-import { SatelliteForm } from '../components/forms/SatelliteForm';
-import { SimulationConfig } from '../components/forms/SimulationConfig';
-import { CsvUpload } from '../components/forms/CsvUpload';
-import type { OrbitalObjectInput } from '../types';
+import { KpiCards } from '../components/dashboard/KpiCards';
 
 export function RiskAnalysisPage() {
-  const { result, status, error, config, getSelectedRisk } = useSimulationStore();
-  const { runDemo, runCustom } = useSimulation();
-  const [customDebris, setCustomDebris] = useState<OrbitalObjectInput[] | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'table' | 'configure'>('overview');
+  const { status, result } = useSimulationStore();
 
-  // Auto-initialize demo simulation if empty
-  const hasAutoLoaded = useRef(false);
-  useEffect(() => {
-    if (!hasAutoLoaded.current && status === 'idle' && !result) {
-      hasAutoLoaded.current = true;
-      runDemo();
-    }
-  }, [status, result, runDemo]);
+  const metrics = useMemo(() => {
+    if (!result) return null;
+    return {
+      'Total Objects': result.total_objects_analyzed,
+      'Risks Found': result.total_risks_detected,
+      'Critical': result.risks.filter(r => r.risk_level === 'critical').length,
+      'High': result.risks.filter(r => r.risk_level === 'high').length,
+      'Moderate': result.risks.filter(r => r.risk_level === 'moderate').length,
+      'Low': result.risks.filter(r => r.risk_level === 'low').length,
+      'Min Distance': result.risks.length > 0
+        ? `${Math.min(...result.risks.map(r => r.miss_distance_km)).toFixed(1)} km`
+        : '—',
+      'Max Velocity': result.risks.length > 0
+        ? `${Math.max(...result.risks.map(r => r.relative_velocity_km_s)).toFixed(2)} km/s`
+        : '—',
+    };
+  }, [result]);
 
-  const selectedRisk = getSelectedRisk();
-
-  const handleRunSimulation = async () => {
-    if (customDebris && customDebris.length > 0) {
-      await runCustom(customDebris);
-    } else {
-      await runDemo();
-    }
-  };
+  const riskDistribution = useMemo(() => {
+    if (!result) return null;
+    const counts = { critical: 0, high: 0, moderate: 0, low: 0 };
+    result.risks.forEach(r => { counts[r.risk_level]++; });
+    const total = result.risks.length || 1;
+    return {
+      critical: Math.round((counts.critical / total) * 100),
+      high: Math.round((counts.high / total) * 100),
+      moderate: Math.round((counts.moderate / total) * 100),
+      low: Math.round((counts.low / total) * 100),
+      raw: counts,
+    };
+  }, [result]);
 
   return (
-    <div className="min-h-screen pt-14 pb-8 px-4">
-      <div className="max-w-screen-xl mx-auto space-y-6 pt-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white font-mono tracking-wide">Risk Analysis</h1>
-            <p className="text-gray-500 text-sm font-mono">
-              {result
-                ? `Simulation ID: ${result.simulation_id} · Generated ${new Date(result.stats.generated_at).toLocaleTimeString()}`
-                : 'No simulation loaded'}
+    <div className="min-h-screen bg-[var(--bg)]">
+      {/* Top Bar */}
+      <header className="h-10 flex items-center justify-between px-4 border-b border-[var(--border)]">
+        <div className="flex items-center gap-4">
+          <Link to="/" className="text-[11px] text-[var(--dim)] no-underline hover:text-[var(--fg)]">
+            &lt; HOME
+          </Link>
+          <span className="text-[13px] font-extrabold">RISK ANALYSIS</span>
+        </div>
+        <div className="text-[10px] text-[var(--dim)]">
+          {status === 'complete' && result && (
+            <span>SIM {result.simulation_id}</span>
+          )}
+        </div>
+      </header>
+
+      {/* Status Line */}
+      <div className="border-b border-[var(--border)] px-4 py-2 text-[11px]">
+        <span className="text-[var(--dim)]">STATUS: </span>
+        <span className={
+          status === 'running' ? 'text-[var(--high)]' :
+          status === 'complete' ? 'text-[#22c55e]' :
+          status === 'error' ? 'text-[var(--critical)]' :
+          'text-[var(--dim)]'
+        }>
+          {status === 'running' ? 'COMPUTING...' :
+           status === 'complete' ? `${result?.total_risks_detected ?? 0} RISKS DETECTED` :
+           status === 'error' ? 'ERROR — CHECK INPUTS' :
+           'AWAITING SIMULATION'}
+        </span>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* KPI Cards */}
+        {metrics && <KpiCards metrics={metrics} />}
+
+        {/* No Data State */}
+        {status === 'idle' && (
+          <div className="border border-[var(--border)] p-8 text-center">
+            <p className="text-[var(--dim)] mb-2">NO SIMULATION DATA</p>
+            <p className="text-[11px] text-[#404040] mb-4">
+              Run a simulation first to generate risk analysis.
+            </p>
+            <Link
+              to="/simulation"
+              className="btn-terminal inline-block text-[11px] no-underline"
+            >
+              GO TO SIMULATION
+            </Link>
+          </div>
+        )}
+
+        {/* Running State */}
+        {status === 'running' && (
+          <div className="border border-[var(--border)] p-8 text-center">
+            <div className="inline-block w-4 h-4 border-2 border-[var(--fg)] border-t-transparent animate-spin mb-4" />
+            <p className="text-[11px] text-[var(--high)]">
+              COMPUTING COLLISION PROBABILITIES...
             </p>
           </div>
-          <div className="flex gap-3">
-            <button
-              id="run-simulation-btn"
-              onClick={handleRunSimulation}
-              disabled={status === 'running'}
-              className="btn-primary"
-            >
-              {status === 'running' ? '⟳ Simulating...' : '▶ Run Simulation'}
-            </button>
-            <button
-              onClick={() => runDemo()}
-              disabled={status === 'running'}
-              className="btn-secondary"
-            >
-              🎯 Load Demo
-            </button>
-          </div>
-        </div>
-
-        {/* Status banner */}
-        {status === 'running' && (
-          <div className="glass-panel flex items-center gap-3 border-blue-500/30">
-            <span className="text-blue-400 animate-spin text-xl">⟳</span>
-            <div>
-              <p className="text-blue-300 font-mono text-sm">Simulation Running...</p>
-              <p className="text-gray-500 font-mono text-xs">Propagating {result?.debris_objects.length ?? 50} objects over {config.window_hours}h window</p>
-            </div>
-          </div>
         )}
 
-        {/* Error banner */}
-        {error && (
-          <div className="glass-panel flex items-center gap-3 border-red-500/30 bg-red-950/20">
-            <span className="text-red-400 text-xl">⚠</span>
-            <div>
-              <p className="text-red-300 font-mono text-sm">Simulation Error</p>
-              <p className="text-gray-400 font-mono text-xs">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* KPI Cards */}
-        <KpiCards stats={result?.stats ?? null} />
-
-        {/* Tabs - Liquid Glass Segmented Control */}
-        <div className="flex gap-1.5 p-1 rounded-full bg-white/[0.04] border border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] w-fit backdrop-blur-md">
-          {(['overview', 'table', 'configure'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                activeTab === tab
-                  ? 'bg-gradient-to-b from-cyan-400/30 to-cyan-600/20 border border-cyan-400/50 text-cyan-200 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_10px_rgba(6,182,212,0.25)]'
-                  : 'border border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Overview tab */}
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <RiskDistributionChart stats={result?.stats ?? null} />
-            <div className="lg:col-span-2">
-              <ApproachTimeline results={result?.risk_results ?? []} />
-            </div>
-            <div className="lg:col-span-3">
-              <DistanceGraph riskEntry={selectedRisk} />
-            </div>
-          </div>
-        )}
-
-        {/* Risk Table tab */}
-        {activeTab === 'table' && (
-          <div>
-            {result ? (
-              <RiskTable results={result.risk_results} />
-            ) : (
-              <div className="glass-panel text-center py-12">
-                <p className="text-gray-500 font-mono">Run a simulation to see the risk ranking table</p>
+        {/* Results */}
+        {status === 'complete' && result && (
+          <>
+            {/* Risk Distribution */}
+            {riskDistribution && (
+              <div className="border border-[var(--border)] p-4">
+                <p className="section-title">RISK DISTRIBUTION</p>
+                <div className="space-y-2">
+                  {(['critical', 'high', 'moderate', 'low'] as const).map(level => (
+                    <div key={level} className="flex items-center gap-3 text-[11px]">
+                      <span className={`w-20 ${level === 'critical' ? 'risk-critical' : level === 'high' ? 'risk-high' : 'text-[var(--dim)]'}`}>
+                        {level.toUpperCase()}
+                      </span>
+                      <div className="flex-1 h-2 border border-[var(--border)] bg-[var(--bg)]">
+                        <div
+                          className={`h-full ${
+                            level === 'critical' ? 'bg-[var(--critical)]' :
+                            level === 'high' ? 'bg-[var(--high)]' :
+                            level === 'moderate' ? 'bg-[var(--muted)]' :
+                            'bg-[#404040]'
+                          }`}
+                          style={{ width: `${riskDistribution[level]}%` }}
+                        />
+                      </div>
+                      <span className="w-12 text-right text-[var(--dim)]">
+                        {riskDistribution.raw[level]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Configure tab */}
-        {activeTab === 'configure' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="glass-panel">
-              <h3 className="section-label mb-4">Satellite Parameters</h3>
-              <SatelliteForm />
+            {/* Risk Table */}
+            <div>
+              <p className="section-title">RISK TABLE</p>
+              <RiskTable risks={result.risks} compact={false} />
             </div>
-            <div className="glass-panel">
-              <h3 className="section-label mb-4">Simulation Window & Parameters</h3>
-              <SimulationConfig onRun={handleRunSimulation} isLoading={status === 'running'} />
-              <div className="mt-6 pt-4 border-t border-blue-900/30">
-                <h3 className="section-label mb-4">Upload Custom Debris CSV</h3>
-                <CsvUpload onLoaded={objs => setCustomDebris(objs)} />
-                {customDebris && (
-                  <p className="mt-2 text-green-400 text-xs font-mono">✓ {customDebris.length} custom debris objects loaded</p>
-                )}
-              </div>
-            </div>
-          </div>
+          </>
         )}
-
-        {/* Disclaimer */}
-        <div className="px-4 py-3 bg-yellow-900/10 border border-yellow-900/30 rounded text-xs font-mono text-yellow-700 leading-relaxed">
-          ⚠ APPROXIMATE MODEL: Results are generated using simplified circular/Keplerian orbital propagation and configurable heuristic risk thresholds. 
-          Outputs are for demonstration and research purposes only and are NOT intended for operational collision avoidance. 
-          Demo risk classification — NOT ISRO/NASA operational thresholds.
-        </div>
       </div>
     </div>
   );

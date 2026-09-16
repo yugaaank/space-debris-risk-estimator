@@ -1,359 +1,305 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import apiClient from '../api/client';
 import { OrbitalScene } from '../components/three/Scene';
-import { HUD } from '../components/three/HUD';
 import { useSimulationStore } from '../store/simulationStore';
 import { useSimulation } from '../hooks/useSimulation';
+import type { SpaceDebris } from '../types';
 
 const SPEED_OPTIONS = [1, 10, 100, 1000, 10000];
 
-function formatTime(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function SimClock({ simulationTime }: { simulationTime: number }) {
-  const hours = Math.floor(simulationTime / 3600);
-  const minutes = Math.floor((simulationTime % 3600) / 60);
-  const secs = Math.floor(simulationTime % 60);
-
-  return (
-    <div className="text-center px-4 py-2.5 rounded-2xl"
-      style={{
-        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(4, 18, 38, 0.55)',
-        border: '1px solid rgba(255, 255, 255, 0.16)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 8px 24px rgba(0, 0, 0, 0.35)',
-      }}>
-      <p className="text-[9px] font-mono text-cyan-400/70 tracking-widest uppercase mb-0.5">Simulation T+</p>
-      <p className="text-2xl font-mono font-black text-cyan-200 leading-none tracking-wider"
-        style={{ fontFamily: "'Orbitron', monospace", textShadow: '0 0 14px rgba(6, 182, 212, 0.7)' }}>
-        {String(hours).padStart(2, '0')}
-        <span className="text-cyan-500/60">:</span>
-        {String(minutes).padStart(2, '0')}
-        <span className="text-cyan-500/60">:</span>
-        {String(secs).padStart(2, '0')}
-      </p>
-    </div>
-  );
-}
-
 export function SimulationPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [objects, setObjects] = useState<SpaceDebris[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
   const {
-    status, result, error, playState, simulationTime, playbackSpeed, config,
-    setPlayState, setSimulationTime, setPlaybackSpeed,
-    showOrbits, showLabels, showApproachLines, showGrid,
-    toggleOrbits, toggleLabels, toggleApproachLines, toggleGrid,
-    getSelectedRisk,
+    playState, setPlayState,
+    simulationTime, setSimulationTime,
+    playbackSpeed, setPlaybackSpeed,
+    selectedObjectId, setSelectedObject,
+    status: simStatus, result: simResult,
+    showOrbits, toggleOrbits,
+    showApproachLines, toggleApproachLines,
+    showGrid, toggleGrid,
+    config,
   } = useSimulationStore();
+
   const { runDemo } = useSimulation();
 
-  // Auto-load on mount
-  const hasAutoLoaded = useRef(false);
-  useEffect(() => {
-    if (!hasAutoLoaded.current && status === 'idle' && !result) {
-      hasAutoLoaded.current = true;
-      runDemo();
-    }
-  }, [status, result, runDemo]);
-
   const windowSeconds = config.window_hours * 3600;
-  const selectedRisk = getSelectedRisk();
+  const progress = windowSeconds > 0 ? simulationTime / windowSeconds : 0;
 
-  // Export CSV
-  const handleExport = useCallback(() => {
-    if (!result) return;
-    const headers = ['rank', 'object_id', 'name', 'min_distance_km', 'tca_label', 'relative_velocity_km_s', 'risk_score', 'risk_level'];
-    const rows = result.risk_results.map(r =>
-      [r.rank, r.object_id, `"${r.name}"`, r.min_distance_km, r.tca_label, r.relative_velocity_km_s, r.risk_score, r.risk_level].join(',')
+  // Load objects
+  useEffect(() => {
+    apiClient.getObjects()
+      .then((data: any) => {
+        const list: SpaceDebris[] = Array.isArray(data) ? data : data.objects ?? [];
+        setObjects(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Select object from URL
+  useEffect(() => {
+    const id = searchParams.get('objectId');
+    if (id) setSelectedObject(id);
+  }, [searchParams, setSelectedObject]);
+
+  const handleObjectClick = (id: string) => {
+    setSelectedObject(id);
+    setSearchParams({ objectId: id }, { replace: true });
+  };
+
+  const handlePlayPause = () => {
+    if (playState === 'playing') {
+      setPlayState('paused');
+    } else {
+      if (progress >= 1) setSimulationTime(0);
+      setPlayState('playing');
+    }
+  };
+
+  const handleReset = () => {
+    setPlayState('stopped');
+    setSimulationTime(0);
+  };
+
+  const filteredObjects = useMemo(() => {
+    if (!searchTerm) return objects;
+    const term = searchTerm.toLowerCase();
+    return objects.filter(o =>
+      o.id.toLowerCase().includes(term) ||
+      o.name.toLowerCase().includes(term)
     );
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'orbital_shield_risk_report.csv'; a.click();
-    URL.revokeObjectURL(url);
-  }, [result]);
+  }, [objects, searchTerm]);
 
-  // Progress percentage
-  const progress = windowSeconds > 0 ? (simulationTime / windowSeconds) * 100 : 0;
+  const selectedObj = useMemo(() => {
+    if (!selectedObjectId) return null;
+    return objects.find(o => o.id === selectedObjectId) ?? null;
+  }, [objects, selectedObjectId]);
+
+  const criticalCount = useMemo(() => {
+    if (!simResult) return 0;
+    return simResult.risks.filter(r => r.risk_level === 'critical').length;
+  }, [simResult]);
 
   return (
-    <div className="h-screen flex flex-col pt-14">
-      <div className="flex flex-1 overflow-hidden">
-        
-        {/* ── Left control panel (Floating Liquid Glass Console) ── */}
-        <div className="w-72 flex-shrink-0 overflow-y-auto" 
-          style={{
-            background: 'linear-gradient(180deg, rgba(8, 18, 42, 0.65) 0%, rgba(2, 8, 22, 0.72) 100%)',
-            borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(28px) saturate(190%)',
-            WebkitBackdropFilter: 'blur(28px) saturate(190%)',
-            boxShadow: '8px 0 32px 0 rgba(0, 0, 0, 0.35), inset -1px 0 0 0 rgba(255, 255, 255, 0.05)',
-          }}>
-          <div className="p-3 space-y-3">
-            
-            {/* Simulation Clock */}
-            {status === 'complete' && (
-              <SimClock simulationTime={simulationTime} />
-            )}
+    <div className="h-screen flex flex-col bg-[var(--bg)]">
+      {/* Top Bar */}
+      <header className="h-12 flex items-center justify-between px-4 border-b-[3px] border-[var(--fg)] shrink-0">
+        <div className="flex items-center gap-4">
+          <span className="text-[14px] font-extrabold">ORBITAL SIMULATION</span>
+          <span className={`text-[10px] font-bold ${
+            simStatus === 'running' ? 'text-[var(--high)]' :
+            simStatus === 'complete' ? 'text-[#00cc00]' :
+            'text-[var(--dim)]'
+          }`}>
+            {simStatus === 'running' ? 'COMPUTING' :
+             simStatus === 'complete' ? `${simResult?.risks?.length ?? 0} RISKS` :
+             'IDLE'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-[var(--dim)] hide-mobile">
+          {criticalCount > 0 && (
+            <span className="text-[var(--critical)]">{criticalCount} CRITICAL</span>
+          )}
+          <span>{objects.length} LOADED</span>
+        </div>
+      </header>
 
-            {/* Simulation Controls */}
-            <div className="mission-panel">
-              <h3 className="section-label mb-3 text-[10px]">Playback Control</h3>
-
-              {/* Play/Pause/Reset */}
-              <div className="flex gap-2 mb-3">
-                <button
-                  id="play-pause-btn"
-                  onClick={() => setPlayState(playState === 'playing' ? 'paused' : 'playing')}
-                  disabled={status !== 'complete'}
-                  className={`flex-1 py-2 rounded-full text-xs font-mono font-bold tracking-wider border transition-all duration-200 cursor-pointer ${
-                    playState === 'playing'
-                      ? 'border-amber-400/40 text-amber-200 bg-gradient-to-b from-amber-500/25 to-amber-600/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_4px_16px_rgba(245,158,11,0.2)]'
-                      : 'border-emerald-400/40 text-emerald-200 bg-gradient-to-b from-emerald-500/25 to-emerald-600/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_4px_16px_rgba(16,185,129,0.2)]'
-                  } disabled:opacity-30 disabled:cursor-not-allowed`}
-                >
-                  {playState === 'playing' ? '⏸ PAUSE' : '▶ PLAY'}
-                </button>
-                <button
-                  id="reset-btn"
-                  onClick={() => { setSimulationTime(0); setPlayState('stopped'); }}
-                  disabled={status !== 'complete'}
-                  className="btn-icon disabled:opacity-30"
-                  title="Reset to T+0"
-                >
-                  ⏮
-                </button>
-              </div>
-
-              {/* Timeline scrubber */}
-              <div className="mb-3">
-                <div className="flex justify-between text-[10px] font-mono text-gray-400 mb-1.5">
-                  <span>{formatTime(simulationTime)}</span>
-                  <span className="text-cyan-400 font-bold">{progress.toFixed(1)}%</span>
-                  <span>{formatTime(windowSeconds)}</span>
-                </div>
-                <div className="relative">
-                  <input
-                    type="range"
-                    min={0}
-                    max={windowSeconds}
-                    step={config.timestep_seconds}
-                    value={simulationTime}
-                    onChange={e => setSimulationTime(parseFloat(e.target.value))}
-                    disabled={status !== 'complete'}
-                    className="w-full disabled:opacity-30"
-                    style={{ cursor: status === 'complete' ? 'pointer' : 'not-allowed' }}
-                  />
-                </div>
-              </div>
-
-              {/* Speed selector */}
-              <div>
-                <p className="hud-label mb-1.5">Playback Speed</p>
-                <div className="grid grid-cols-5 gap-1 p-0.5 rounded-full bg-black/20 border border-white/[0.06]">
-                  {SPEED_OPTIONS.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setPlaybackSpeed(s)}
-                      className={`py-1 rounded-full text-[10px] font-mono font-bold border transition-all duration-200 cursor-pointer ${
-                        playbackSpeed === s
-                          ? 'bg-gradient-to-b from-cyan-400/30 to-cyan-600/20 border-cyan-400/50 text-cyan-200 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_2px_8px_rgba(6,182,212,0.25)]'
-                          : 'border-transparent text-gray-500 hover:border-white/[0.15] hover:text-gray-300 hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      {s >= 1000 ? `${s/1000}k` : `${s}`}×
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Scenario */}
-            <div className="mission-panel">
-              <h3 className="section-label mb-3 text-[10px]">Scenario</h3>
+      {/* Main Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar */}
+        <aside className="w-[280px] border-r border-[var(--border)] flex flex-col shrink-0 hide-mobile overflow-y-auto">
+          {/* Run Simulation */}
+          {simStatus !== 'complete' && (
+            <div className="p-3 border-b-[3px] border-[var(--fg)]">
               <button
-                id="load-demo-btn"
-                onClick={() => runDemo()}
-                disabled={status === 'running'}
-                className="btn-primary w-full mb-2 text-xs"
+                onClick={runDemo}
+                disabled={simStatus === 'running'}
+                className="w-full py-3 text-[12px] font-extrabold border-[3px] border-[var(--fg)] cursor-pointer bg-[var(--fg)] text-[var(--bg)] hover:bg-[var(--critical)] hover:border-[var(--critical)] hover:text-[var(--fg)] transition-colors disabled:opacity-40 disabled:cursor-wait"
               >
-                {status === 'running' ? '⟳ SIMULATING...' : '▶ LOAD DEMO SCENARIO'}
+                {simStatus === 'running' ? '> COMPUTING...' : '> RUN SIMULATION'}
               </button>
-              {result && (
-                <button
-                  id="export-csv-btn"
-                  onClick={handleExport}
-                  className="btn-secondary w-full text-xs"
-                >
-                  ↓ EXPORT RISK CSV
-                </button>
-              )}
             </div>
+          )}
 
-            {/* View Toggles */}
-            <div className="mission-panel">
-              <h3 className="section-label mb-3 text-[10px]">View Toggles</h3>
-              <div className="space-y-1.5">
-                {[
-                  { label: 'Orbit Paths', state: showOrbits, toggle: toggleOrbits },
-                  { label: 'Approach Lines', state: showApproachLines, toggle: toggleApproachLines },
-                  { label: 'Object Labels', state: showLabels, toggle: toggleLabels },
-                  { label: 'Equatorial Grid', state: showGrid, toggle: toggleGrid },
-                ].map(({ label, state, toggle }) => (
+          {/* Playback Controls */}
+          {simStatus === 'complete' && (
+            <div className="p-3 border-b border-[var(--border)]">
+              <p className="section-label mb-2">PLAYBACK</p>
+              <div className="flex gap-0 mb-2">
+                <button
+                  onClick={handlePlayPause}
+                  className={`flex-1 py-2 text-[11px] font-bold border border-[var(--border)] cursor-pointer ${
+                    playState === 'playing'
+                      ? 'bg-[var(--fg)] text-[var(--bg)] border-[var(--fg)]'
+                      : 'bg-transparent text-[var(--fg)] hover:bg-[#111]'
+                  }`}
+                >
+                  {playState === 'playing' ? 'PAUSE' : 'PLAY'}
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex-1 py-2 text-[11px] font-bold border border-[var(--border)] border-l-0 bg-transparent text-[var(--dim)] hover:text-[var(--fg)] hover:bg-[#111] cursor-pointer"
+                >
+                  RESET
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.001}
+                value={progress}
+                onChange={(e) => setSimulationTime(parseFloat(e.target.value) * windowSeconds)}
+                className="w-full"
+              />
+              <div className="flex justify-between text-[9px] text-[var(--dim)] mt-1">
+                <span>T+0h</span>
+                <span>{(progress * 100).toFixed(1)}%</span>
+                <span>T+{config.window_hours}h</span>
+              </div>
+            </div>
+          )}
+
+          {/* Speed Selector */}
+          {simStatus === 'complete' && (
+            <div className="p-3 border-b border-[var(--border)]">
+              <p className="section-label mb-2">SPEED</p>
+              <div className="flex gap-0">
+                {SPEED_OPTIONS.map((s, i) => (
                   <button
-                    key={label}
-                    onClick={toggle}
-                    className={`flex items-center justify-between w-full px-3 py-1.5 rounded-full border text-[11px] font-mono transition-all duration-200 cursor-pointer ${
-                      state
-                        ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 text-cyan-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
-                        : 'border-white/[0.08] text-gray-500 hover:border-white/[0.18] hover:text-gray-300 hover:bg-white/[0.03]'
-                    }`}
+                    key={s}
+                    onClick={() => setPlaybackSpeed(s)}
+                    className={`flex-1 py-1.5 text-[10px] font-bold border border-[var(--border)] cursor-pointer ${
+                      playbackSpeed === s
+                        ? 'bg-[var(--fg)] text-[var(--bg)] border-[var(--fg)]'
+                        : 'bg-transparent text-[var(--dim)] hover:text-[var(--fg)] hover:bg-[#111]'
+                    } ${i > 0 ? 'border-l-0' : ''}`}
                   >
-                    {label}
-                    <span className={`w-2 h-2 rounded-full transition-colors ${state ? 'bg-cyan-400 shadow-[0_0_6px_#22d3ee]' : 'bg-gray-700'}`} />
+                    {s >= 1000 ? `${s / 1000}k` : s}x
                   </button>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* Selected object info */}
-            <AnimatePresence>
-              {selectedRisk && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="mission-panel"
-                  style={{
-                    borderColor: selectedRisk.risk_level === 'CRITICAL' ? 'rgba(255, 34, 68, 0.35)'
-                      : selectedRisk.risk_level === 'HIGH' ? 'rgba(255, 136, 0, 0.3)'
-                      : 'rgba(56, 189, 248, 0.15)'
-                  }}
+          {/* View Toggles */}
+          <div className="p-3 border-b border-[var(--border)]">
+            <p className="section-label mb-2">VIEW</p>
+            <div className="space-y-1.5">
+              {[
+                { active: showOrbits, toggle: toggleOrbits, label: 'ORBITS' },
+                { active: showApproachLines, toggle: toggleApproachLines, label: 'RISK LINES' },
+                { active: showGrid, toggle: toggleGrid, label: 'GRID' },
+              ].map(({ active, toggle, label }) => (
+                <button
+                  key={label}
+                  onClick={toggle}
+                  className="w-full flex items-center gap-2 text-[11px] cursor-pointer bg-transparent border-none text-left py-0.5"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="section-label text-[10px]">SELECTED TARGET</h3>
-                    <span className={`text-[10px] font-mono font-bold ${
-                      selectedRisk.risk_level === 'CRITICAL' ? 'text-red-400' :
-                      selectedRisk.risk_level === 'HIGH' ? 'text-orange-400' :
-                      selectedRisk.risk_level === 'MODERATE' ? 'text-yellow-400' : 'text-emerald-400'
-                    }`}>
-                      {selectedRisk.risk_level}
-                    </span>
-                  </div>
-                  <p className="text-xs font-mono text-gray-300 font-bold mb-2">{selectedRisk.object_id}</p>
-                  <div className="space-y-1.5 text-[11px] font-mono">
-                    {[
-                      { label: 'Min Distance', value: `${selectedRisk.min_distance_km.toFixed(2)} km`, accent: true },
-                      { label: 'TCA', value: selectedRisk.tca_label, accent: false },
-                      { label: 'Rel. Velocity', value: `${selectedRisk.relative_velocity_km_s.toFixed(2)} km/s`, accent: false },
-                      { label: 'Risk Score', value: `${selectedRisk.risk_score}/100`, accent: false },
-                    ].map(({ label, value, accent }) => (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-gray-600">{label}</span>
-                        <span className={accent ? 'text-yellow-300 font-bold' : 'text-gray-300'}>{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Risk score bar */}
-                  <div className="mt-2 risk-bar">
-                    <div className="risk-bar-fill"
-                      style={{
-                        width: `${selectedRisk.risk_score}%`,
-                        background: selectedRisk.risk_level === 'CRITICAL' ? 'var(--risk-critical)'
-                          : selectedRisk.risk_level === 'HIGH' ? 'var(--risk-high)'
-                          : selectedRisk.risk_level === 'MODERATE' ? 'var(--risk-moderate)'
-                          : 'var(--risk-low)',
-                      }}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Disclaimer */}
-            <div className="px-2 py-2 rounded text-[10px] font-mono text-yellow-700 leading-relaxed"
-              style={{ background: 'rgba(30, 20, 0, 0.5)', border: '1px solid rgba(255, 200, 0, 0.12)' }}>
-              ⚠ APPROXIMATE MODEL — Simplified Keplerian propagation. Not for operational use.
+                  <span className={`inline-block w-3 h-3 border border-[var(--border)] text-[8px] leading-none flex items-center justify-center ${
+                    active ? 'bg-[var(--fg)] text-[var(--bg)]' : 'bg-transparent text-transparent'
+                  }`}>
+                    {active ? 'x' : ''}
+                  </span>
+                  <span className={active ? 'text-[var(--fg)]' : 'text-[var(--dim)]'}>{label}</span>
+                </button>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* ── 3D View ──────────────────────────────────── */}
-        <div className="flex-1 relative">
-          <OrbitalScene />
-          <HUD />
-
-          {/* Loading overlay */}
-          <AnimatePresence>
-            {status === 'running' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center"
-                style={{ background: 'rgba(1, 6, 16, 0.75)' }}
-              >
-                <div className="mission-panel text-center px-16 py-10">
-                  <div className="relative w-16 h-16 mx-auto mb-6">
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan-400/20" />
-                    <div className="absolute inset-0 rounded-full border-t-2 border-cyan-400 animate-spin" />
-                    <div className="absolute inset-2 rounded-full border-t border-blue-400/60 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
-                    <div className="absolute inset-0 flex items-center justify-center text-cyan-400 text-xl">⊕</div>
+          {/* Selected Object */}
+          {selectedObj && (
+            <div className="p-3 border-b border-[var(--border)]">
+              <p className="section-label mb-2">SELECTED RSO</p>
+              <div className="space-y-1 text-[11px]">
+                {[
+                  ['ID', selectedObj.id],
+                  ['NAME', selectedObj.name],
+                  ['ALT', `${selectedObj.altitude.toFixed(1)} km`],
+                  ['INC', `${selectedObj.inclination.toFixed(1)}°`],
+                  ['PER', `${selectedObj.period_minutes.toFixed(1)} min`],
+                  ['RAAN', `${selectedObj.ascending_node_deg.toFixed(1)}°`],
+                  ['TYPE', `[${selectedObj.object_type.toUpperCase()}]`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between">
+                    <span className="text-[var(--dim)]">{label}</span>
+                    <span className="font-bold">{value}</span>
                   </div>
-                  <p className="text-cyan-300 font-mono text-sm font-bold tracking-widest mb-1">SIMULATION RUNNING</p>
-                  <p className="text-gray-500 font-mono text-xs">Propagating orbits · calculating conjunctions</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Empty state */}
-          <AnimatePresence>
-            {status === 'idle' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center pointer-events-none"
-              >
-                <div className="text-center">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-cyan-500/20 flex items-center justify-center">
-                    <span className="text-3xl text-gray-700">⊕</span>
+          {/* Object List */}
+          <div className="flex-1 p-3 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <p className="section-label mb-0">OBJECTS</p>
+              <span className="text-[10px] text-[var(--dim)]">{filteredObjects.length}</span>
+            </div>
+            <input
+              type="text"
+              placeholder="SEARCH..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] px-2 py-1 text-[11px] font-[var(--font-mono)] outline-none mb-2"
+            />
+            <div className="space-y-0 max-h-[200px] overflow-y-auto">
+              {filteredObjects.map(obj => (
+                <button
+                  key={obj.id}
+                  onClick={() => handleObjectClick(obj.id)}
+                  className={`w-full text-left px-2 py-1.5 text-[11px] cursor-pointer border-none ${
+                    selectedObjectId === obj.id
+                      ? 'bg-[var(--fg)] text-[var(--bg)]'
+                      : 'bg-transparent text-[var(--dim)] hover:bg-[#111] hover:text-[var(--fg)]'
+                  }`}
+                >
+                  {obj.id} — {obj.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* 3D Scene */}
+        <main className="flex-1 relative">
+          <div className="absolute inset-0 bg-[#020a14]">
+            <OrbitalScene />
+          </div>
+
+          {/* HUD Overlay */}
+          <div className="absolute top-3 left-3 pointer-events-none z-10">
+            <div className="border border-[var(--border)] p-2 bg-[var(--bg)] opacity-90">
+              <div className="space-y-0.5 text-[10px]">
+                <div className="flex gap-3">
+                  <span className="text-[var(--dim)]">SIM TIME</span>
+                  <span className="font-bold">
+                    {Math.floor(simulationTime / 3600)}h{' '}
+                    {Math.floor((simulationTime % 3600) / 60)}m
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-[var(--dim)]">OBJECTS</span>
+                  <span className="font-bold">{objects.length}</span>
+                </div>
+                {selectedObj && (
+                  <div className="flex gap-3">
+                    <span className="text-[var(--dim)]">SELECTED</span>
+                    <span className="font-bold">{selectedObj.id}</span>
                   </div>
-                  <p className="text-gray-600 font-mono text-sm mb-1">No simulation loaded</p>
-                  <p className="text-gray-700 font-mono text-xs">Click "Load Demo Scenario" to begin</p>
+                )}
+                <div className="flex gap-3">
+                  <span className="text-[var(--dim)]">SPEED</span>
+                  <span className="font-bold">{playbackSpeed}x</span>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Error overlay */}
-          <AnimatePresence>
-            {status === 'error' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center z-30"
-                style={{ background: 'rgba(1, 6, 16, 0.85)' }}
-              >
-                <div className="danger-panel text-center px-10 py-8 max-w-md pointer-events-auto">
-                  <div className="text-4xl mb-3 text-red-400 animate-critical-pulse">⚠</div>
-                  <p className="text-red-300 font-mono text-sm font-bold tracking-wider mb-2">SIMULATION SERVICE NOTICE</p>
-                  <p className="text-gray-400 font-mono text-xs mb-5 leading-relaxed">{error || 'Unable to reach the orbital risk service. The backend may be warming up.'}</p>
-                  <button onClick={() => runDemo()} className="btn-primary text-xs px-6 py-2">
-                    ⟳ RETRY CONNECTION
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

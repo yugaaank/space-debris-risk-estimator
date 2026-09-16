@@ -1,32 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useSimulationStore } from '../../store/simulationStore';
 import { SystemStatusCompact, SystemStatusPanel } from './SystemStatus';
 
 const NAV_LINKS = [
-  { to: '/', label: 'Overview', icon: '⊕' },
-  { to: '/simulation', label: '3D Sim', icon: '🛸' },
-  { to: '/risk', label: 'Risk Analysis', icon: '⚠' },
-  { to: '/objects', label: 'Objects', icon: '☰' },
-  { to: '/methodology', label: 'Methodology', icon: '∫' },
+  { to: '/', label: 'HOME' },
+  { to: '/simulation', label: 'SIM' },
+  { to: '/risk', label: 'RISK' },
+  { to: '/objects', label: 'OBJECTS' },
+  { to: '/methodology', label: 'DOCS' },
 ];
 
 function MissionClock() {
-  const [time, setTime] = useState(() => new Date().toISOString().slice(11, 19) + ' UTC');
-  
+  const [time, setTime] = useState(() => {
+    const d = new Date();
+    return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:${String(d.getUTCSeconds()).padStart(2,'0')}`;
+  });
+
   useEffect(() => {
-    const tick = () => setTime(new Date().toUTCString().slice(17, 25) + ' UTC');
-    tick();
+    const tick = () => {
+      const d = new Date();
+      setTime(`${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:${String(d.getUTCSeconds()).padStart(2,'0')}`);
+    };
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
 
-  return (
-    <span className="text-[10px] font-mono text-gray-600 tracking-widest hidden lg:block">
-      {time}
-    </span>
-  );
+  return <span className="text-[11px] text-[var(--dim)]">{time} UTC</span>;
 }
 
 export function Navbar() {
@@ -45,109 +45,65 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const simStatusColor =
-    status === 'running' ? 'text-yellow-400'
-    : status === 'complete' ? 'text-emerald-400'
-    : status === 'error' ? 'text-red-400'
-    : 'text-gray-600';
-
-  const simStatusLabel =
-    status === 'running' ? 'SIMULATING'
-    : status === 'complete' ? `SIM-${result?.simulation_id?.toUpperCase() ?? 'OK'}`
-    : status === 'error' ? 'ERR'
-    : 'READY';
+  const simLabel =
+    status === 'running' ? 'COMPUTING' :
+    status === 'complete' ? `${result?.risks?.length ?? 0} RISKS` :
+    status === 'error' ? 'ERROR' : 'READY';
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-between px-4 lg:px-6"
-      style={{
-        background: 'linear-gradient(180deg, rgba(14, 25, 52, 0.65) 0%, rgba(3, 8, 22, 0.55) 100%)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-        backdropFilter: 'blur(28px) saturate(190%)',
-        WebkitBackdropFilter: 'blur(28px) saturate(190%)',
-        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.38), inset 0 1px 0 0 rgba(255, 255, 255, 0.22)',
-      }}
-    >
-      {/* Top accent gloss highlight line */}
-      <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-cyan-400/45 to-transparent pointer-events-none" />
-
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2.5 no-underline flex-shrink-0 group">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center transition-transform duration-200 group-hover:scale-105"
-          style={{
-            boxShadow: '0 0 14px rgba(56, 189, 248, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.5)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-          }}
-        >
-          <span className="text-xs font-black text-white">⊕</span>
-        </div>
-        <div className="hidden sm:block">
-          <p className="text-white font-black tracking-widest font-mono text-sm leading-tight transition-colors group-hover:text-cyan-200"
-            style={{ fontFamily: "'Orbitron', monospace", letterSpacing: '0.15em' }}>
-            ORBITAL SHIELD
-          </p>
-          <p className="text-cyan-400/60 text-[9px] font-mono leading-tight tracking-widest">SPACE DEBRIS RISK ESTIMATOR</p>
-        </div>
-      </Link>
-
-      {/* Navigation - Liquid Glass Capsule */}
-      <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.04] border border-white/[0.09] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_4px_16px_rgba(0,0,0,0.25)] backdrop-blur-md">
-        {NAV_LINKS.map(link => {
-          const isActive = location.pathname === link.to;
-          return (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`relative px-3 py-1 rounded-full text-[11px] font-mono tracking-wider transition-all duration-200 no-underline ${
-                isActive
-                  ? 'text-cyan-200 bg-gradient-to-b from-cyan-400/25 to-cyan-500/10 border border-cyan-400/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_2px_8px_rgba(6,182,212,0.25)]'
-                  : 'text-gray-400 hover:text-cyan-200 hover:bg-white/[0.06] border border-transparent'
-              }`}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Right side: status + clock */}
-      <div className="flex items-center gap-3 lg:gap-4 flex-shrink-0">
-        <MissionClock />
-
-        {/* Simulation status pill */}
-        <div className="flex items-center gap-1.5 hidden md:flex px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.09] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
-          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-            status === 'running' ? 'bg-yellow-400 animate-pulse'
-            : status === 'complete' ? 'bg-emerald-400'
-            : status === 'error' ? 'bg-red-400'
-            : 'bg-gray-700'
-          }`} />
-          <span className={`text-[10px] font-mono font-bold tracking-widest ${simStatusColor}`}>
-            {simStatusLabel}
+    <nav className="fixed top-0 left-0 right-0 z-50 h-12 border-b-[3px] border-[var(--fg)] bg-[var(--bg)]">
+      <div className="max-w-[1200px] mx-auto h-full flex items-center justify-between px-6">
+        {/* Left: logo */}
+        <Link to="/" className="no-underline shrink-0">
+          <span className="text-[14px] font-extrabold text-[var(--fg)] tracking-tight">
+            ORBITAL_SHIELD
           </span>
+        </Link>
+
+        {/* Center: nav links */}
+        <div className="hidden md:flex items-center gap-0">
+          {NAV_LINKS.map(link => {
+            const isActive = location.pathname === link.to;
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`px-3 py-1.5 text-[11px] font-bold no-underline border-x border-[var(--border)] first:border-l-0 last:border-r-0 ${
+                  isActive
+                    ? 'bg-[var(--fg)] text-[var(--bg)]'
+                    : 'text-[var(--dim)] hover:text-[var(--fg)] hover:bg-[#111]'
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* System status indicator + popover */}
-        <div ref={statusRef} className="relative">
-          <button
-            onClick={() => setShowStatus(v => !v)}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full border border-white/[0.12] hover:border-cyan-400/40 bg-white/[0.04] hover:bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all cursor-pointer"
-          >
-            <SystemStatusCompact />
-          </button>
-
-          <AnimatePresence>
+        {/* Right: clock + sim status + system status */}
+        <div className="flex items-center gap-4">
+          <MissionClock />
+          <span className={`text-[10px] font-bold hidden sm:inline ${
+            status === 'running' ? 'text-[var(--high)]' :
+            status === 'complete' ? 'text-[#00cc00]' :
+            status === 'error' ? 'text-[var(--critical)]' :
+            'text-[var(--dim)]'
+          }`}>
+            {simLabel}
+          </span>
+          <div ref={statusRef} className="relative">
+            <button
+              onClick={() => setShowStatus(v => !v)}
+              className="flex items-center gap-1.5 py-1 px-2 border border-[var(--border)] hover:border-[var(--dim)] bg-transparent cursor-pointer"
+            >
+              <SystemStatusCompact />
+            </button>
             {showStatus && (
-              <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-8 z-50"
-              >
+              <div className="absolute right-0 top-full mt-1 z-50">
                 <SystemStatusPanel />
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
         </div>
       </div>
     </nav>

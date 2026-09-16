@@ -1,0 +1,56 @@
+{
+  "project": {
+    "id": "371cefd5-2344-4820-bcc4-6ed4eb04aea9",
+    "title": "Orbital Shield — Space Debris Risk Estimator",
+    "canvas": "https://superdesign.dev/teams/02525f70-232a-4cd8-898f-d329a6169619/projects/371cefd5-2344-4820-bcc4-6ed4eb04aea9"
+  },
+  "targets": {
+    "landing": {
+      "active": {
+        "draftId": "3150a9af-6c73-4ec9-8fb7-764797f9b02f",
+        "title": "Orbital Shield | BRUTALIST",
+        "preview": "https://p.superdesign.dev/draft/3150a9af-6c73-4ec9-8fb7-764797f9b02f",
+        "style": "brutalist"
+      }
+    },
+    "simulation": {
+      "active": {
+        "draftId": "41fc1595-18da-4e64-956d-892b95a52ec1",
+        "title": "Orbital Shield | NASA Terminal Interface",
+        "preview": "https://p.superdesign.dev/draft/41fc1595-18da-4e64-956d-892b95a52ec1",
+        "style": "nasa-terminal + 3D Earth"
+      }
+    },
+    "risk": {
+      "active": {
+        "draftId": "05a815b0-d78f-40ec-8ea9-2bff047bc69c",
+        "title": "Risk Analysis — NASA Terminal",
+        "preview": "https://p.superdesign.dev/draft/05a815b0-d78f-40ec-8ea9-2bff047bc69c",
+        "style": "nasa-terminal"
+      }
+    },
+    "objects": {
+      "active": {
+        "draftId": "652327be-6070-4910-8805-d90375f88402",
+        "title": "Objects Catalogue — NASA Terminal",
+        "preview": "https://p.superdesign.dev/draft/652327be-6070-4910-8805-d90375f88402",
+        "style": "nasa-terminal"
+      }
+    },
+    "methodology": {
+      "active": {
+        "draftId": "0537f70e-680f-4804-b5cd-88ac35e9c6ce",
+        "title": "Methodology — NASA Terminal",
+        "preview": "https://p.superdesign.dev/draft/0537f70e-680f-4804-b5cd-88ac35e9c6ce",
+        "style": "nasa-terminal"
+      }
+    }
+  },
+  "components": {
+    "NavBar": {
+      "id": "080ff475-7932-4b86-8260-19d1816c6c38"
+    }
+  },
+  "init": true,
+  "designSystem": true
+}

@@ -33,3 +33,6 @@ Thumbs.db
 .cache/
 .pytest_cache/
 .mypy_cache/
+
+# Superdesign temp files
+.superdesign/tmp/
