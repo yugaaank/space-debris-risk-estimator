@@ -1,0 +1,172 @@
+import { useRef, useEffect } from 'react';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
+import { Earth, KM_SCALE } from './Earth';
+import { Starfield } from './Starfield';
+import { OrbitPath } from './OrbitPath';
+import { SatelliteObject } from './SatelliteObject';
+import { DebrisObject } from './DebrisObject';
+import { ApproachLine } from './ApproachLine';
+import { useSimulationStore } from '../../store/simulationStore';
+import { propagatePosition } from '../../utils/orbitalMath';
+import type { RiskLevel } from '../../types';
+
+// ── Animation controller inside Canvas ───────────────────────────────────────
+function SimulationAnimator() {
+  const { playState, simulationTime, playbackSpeed, getWindowSeconds, setSimulationTime, setPlayState } =
+    useSimulationStore();
+  const stateRef = useRef({ playState, simulationTime, playbackSpeed, windowSeconds: getWindowSeconds() });
+
+  useEffect(() => {
+    stateRef.current = { playState, simulationTime, playbackSpeed, windowSeconds: getWindowSeconds() };
+  });
+
+  useFrame((_, delta) => {
+    if (stateRef.current.playState !== 'playing') return;
+    const next = stateRef.current.simulationTime + delta * stateRef.current.playbackSpeed;
+    if (next >= stateRef.current.windowSeconds) {
+      setSimulationTime(0);
+      setPlayState('paused');
+    } else {
+      setSimulationTime(next);
+    }
+  });
+  return null;
+}
+
+// ── Camera focus helper ───────────────────────────────────────────────────────
+function CameraController() {
+  const { camera } = useThree();
+  const { selectedObjectId, result } = useSimulationStore();
+  const prevSelected = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedObjectId || !result || selectedObjectId === prevSelected.current) return;
+    prevSelected.current = selectedObjectId;
+
+    const debrisInfo = result.debris_objects.find(d => d.object_id === selectedObjectId);
+    if (!debrisInfo) return;
+
+    const [x, y, z] = propagatePosition(
+      debrisInfo.altitude_km,
+      debrisInfo.inclination_deg,
+      debrisInfo.phase_deg,
+      debrisInfo.raan_deg,
+      0,
+    );
+    const target = new THREE.Vector3(x * KM_SCALE, y * KM_SCALE, z * KM_SCALE);
+    const distance = target.length() + 5;
+    const dir = target.clone().normalize();
+    camera.position.copy(dir.multiplyScalar(distance + 3));
+    camera.lookAt(0, 0, 0);
+  }, [selectedObjectId, result, camera]);
+
+  return null;
+}
+
+// ── Main Scene Contents ───────────────────────────────────────────────────────
+function SceneContents() {
+  const {
+    result,
+    simulationTime,
+    selectedObjectId,
+    showOrbits,
+    showApproachLines,
+    setSelectedObject,
+  } = useSimulationStore();
+
+  const selectedRisk = result?.risk_results.find(r => r.object_id === selectedObjectId) ?? null;
+  const selectedDebrisInfo = result?.debris_objects.find(d => d.object_id === selectedObjectId) ?? null;
+
+  return (
+    <>
+      <ambientLight intensity={0.25} color="#152238" />
+      <directionalLight position={[60, 25, 45]} intensity={2.2} color="#fffdf6" castShadow />
+      <directionalLight position={[-40, -15, -35]} intensity={0.12} color="#0c1828" />
+
+      <Starfield />
+      <Earth />
+
+      {/* Orbit paths */}
+      {showOrbits && result && result.orbit_paths.map(path => {
+        const isSat = path.object_id === result.satellite.object_id;
+        const risk = result.risk_results.find(r => r.object_id === path.object_id);
+        return (
+          <OrbitPath
+            key={path.object_id}
+            points={path.points as [number, number, number][]}
+            riskLevel={(risk?.risk_level as RiskLevel) ?? 'LOW'}
+            isSatellite={isSat}
+            isSelected={path.object_id === selectedObjectId}
+          />
+        );
+      })}
+
+      {/* Satellite */}
+      {result && (
+        <SatelliteObject
+          info={result.satellite}
+          simulationTime={simulationTime}
+          isSelected={selectedObjectId === result.satellite.object_id}
+        />
+      )}
+
+      {/* Debris */}
+      {result && result.debris_objects.map(deb => {
+        const risk = result.risk_results.find(r => r.object_id === deb.object_id);
+        if (!risk) return null;
+        return (
+          <DebrisObject
+            key={deb.object_id}
+            info={deb}
+            riskLevel={risk.risk_level as RiskLevel}
+            riskScore={risk.risk_score}
+            simulationTime={simulationTime}
+            isSelected={deb.object_id === selectedObjectId}
+            onClick={() => setSelectedObject(deb.object_id)}
+          />
+        );
+      })}
+
+      {/* Approach line for selected object */}
+      {showApproachLines && result && selectedRisk && selectedDebrisInfo &&
+        (selectedRisk.risk_level === 'CRITICAL' || selectedRisk.risk_level === 'HIGH' || selectedRisk.risk_level === 'MODERATE') && (
+        <ApproachLine
+          satellite={result.satellite}
+          debris={selectedDebrisInfo}
+          riskEntry={selectedRisk}
+          simulationTime={simulationTime}
+        />
+      )}
+
+      <SimulationAnimator />
+      <CameraController />
+    </>
+  );
+}
+
+// ── Exported Scene Wrapper ────────────────────────────────────────────────────
+export function OrbitalScene() {
+  return (
+    <Canvas
+      camera={{ position: [0, 15, 30], fov: 45, near: 0.01, far: 2000 }}
+      gl={{ antialias: true, alpha: false }}
+      style={{ background: '#020a14' }}
+      shadows
+    >
+      <OrbitControls
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        minDistance={8}
+        maxDistance={100}
+        zoomSpeed={0.8}
+        rotateSpeed={0.6}
+        dampingFactor={0.05}
+        enableDamping
+      />
+      <SceneContents />
+    </Canvas>
+  );
+}
