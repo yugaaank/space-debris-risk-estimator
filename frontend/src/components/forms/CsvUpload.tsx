@@ -51,7 +51,7 @@ export function CsvUpload({ onParse }: Props) {
       </label>
 
       {error && (
-        <p className="text-[11px] text-[var(--critical)] mt-1">> {error}</p>
+        <p className="text-[11px] text-[var(--critical)] mt-1">&gt; {error}</p>
       )}
 
       <p className="text-[10px] text-[var(--dim)] mt-2">

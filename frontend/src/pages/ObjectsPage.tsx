@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
-import { DebrisCard } from '../components/debris/DebrisCard';
 
 export function ObjectsPage() {
   const [objects, setObjects] = useState<any[]>([]);

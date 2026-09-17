@@ -81,7 +81,7 @@ export function SimulationPage() {
 
   const criticalCount = useMemo(() => {
     if (!simResult) return 0;
-    return simResult.risk_results.filter(r => r.risk_level === 'critical').length;
+    return simResult.risk_results.filter(r => r.risk_level === 'CRITICAL').length;
   }, [simResult]);
 
   return (

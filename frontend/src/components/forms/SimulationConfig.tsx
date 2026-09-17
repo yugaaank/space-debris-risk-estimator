@@ -1,34 +1,16 @@
-import type { SimulationResult } from '../../types';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSimulationStore } from '../../store/simulationStore';
-import { listObjects } from '../../api';
 import apiClient from '../../api/client';
 
-const MAX_OBJECTS = 200;
-
-interface SimulationConfig {
-  propagationTimeHours: number;
-  timeStepMinutes: number;
-  probabilityThreshold: number;
-  useDefaultCatalog: boolean;
-  selectedObjectId: string | null;
-  customObjects: number;
-}
-
 export function SimulationConfigPanel() {
-  const { config, updateConfig, status, result } = useSimulationStore();
-  const [objects, setObjects] = useState<any[]>([]);
-
-  useEffect(() => {
-    listObjects(MAX_OBJECTS).then(setObjects).catch(() => {});
-  }, []);
+  const { config, setConfig, status, result } = useSimulationStore();
 
   const detectedStats = useMemo(() => {
     if (!result) return null;
     return {
-      total: result.total_risks_detected,
-      critical: result.risk_results.filter((r: any) => r.risk_level === 'critical').length,
-      high: result.risk_results.filter((r: any) => r.risk_level === 'high').length,
+      total: result.risk_results.length,
+      critical: result.risk_results.filter((r) => r.risk_level === 'CRITICAL').length,
+      high: result.risk_results.filter((r) => r.risk_level === 'HIGH').length,
     };
   }, [result]);
 
@@ -37,12 +19,16 @@ export function SimulationConfigPanel() {
     return Math.min(
       100,
       Math.round(
-        (result.total_risks_detected * 8) +
-        (result.risk_results.filter((r: any) => r.risk_level === 'critical').length * 15) +
-        (result.risk_results.filter((r: any) => r.risk_level === 'high').length * 10)
+        (result.risk_results.length * 8) +
+        (result.risk_results.filter((r) => r.risk_level === 'CRITICAL').length * 15) +
+        (result.risk_results.filter((r) => r.risk_level === 'HIGH').length * 10)
       )
     );
   }, [result]);
+
+  const handleRunSimulation = () => {
+    apiClient.simulateDemo(config.window_hours, config.timestep_seconds);
+  };
 
   return (
     <div className="terminal-border bg-[var(--bg)] overflow-hidden">
@@ -51,52 +37,29 @@ export function SimulationConfigPanel() {
       </div>
 
       <div className="p-3 space-y-3">
-        {[
-          { key: 'selectedObjectId' as const, label: 'TARGET RSO', value: config.selectedObjectId ?? '', type: 'text' },
-          { key: 'customObjects' as const, label: 'ADDITIONAL OBJECTS', value: config.customObjects, type: 'number' },
-          { key: 'propagationTimeHours' as const, label: 'PROPAGATION (HRS)', value: config.propagationTimeHours, type: 'number' },
-          { key: 'timeStepMinutes' as const, label: 'TIME STEP (MIN)', value: config.timeStepMinutes, type: 'number' },
-          { key: 'probabilityThreshold' as const, label: 'PROB THRESHOLD', value: config.probabilityThreshold, type: 'number' },
-        ].map(({ key, label, value, type }) => (
-          <div key={key}>
-            <label className="block text-[10px] text-[var(--dim)] mb-1">{label}</label>
-            <input
-              type={type}
-              value={value}
-              onChange={(e) => updateConfig({ [key]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
-              className="input-field"
-            />
-          </div>
-        ))}
-
-        <div className="flex justify-between items-center">
-          <label className="text-[10px] text-[var(--dim)]">USE DEFAULT CATALOG</label>
-          <button
-            onClick={() => updateConfig({ useDefaultCatalog: !config.useDefaultCatalog })}
-            className={`w-10 h-4 border border-[var(--border)] cursor-pointer transition-colors ${
-              config.useDefaultCatalog
-                ? 'bg-[var(--fg)] border-[var(--fg)]'
-                : 'bg-[var(--bg)]'
-            }`}
-          >
-            <div className={`w-3 h-3 transition-transform ${
-              config.useDefaultCatalog
-                ? 'translate-x-[22px] bg-[var(--bg)]'
-                : 'translate-x-[1px] bg-[var(--fg)]'
-            }`} />
-          </button>
+        <div>
+          <label className="block text-[10px] text-[var(--dim)] mb-1">PROPAGATION (HRS)</label>
+          <input
+            type="number"
+            value={config.window_hours}
+            onChange={(e) => setConfig({ ...config, window_hours: parseFloat(e.target.value) || 24 })}
+            className="input-field"
+          />
         </div>
-
-        {config.useDefaultCatalog && (
-          <div className="terminal-border p-2 text-[10px] text-[var(--dim)]">
-            Will include {objects.length} objects from catalog
-          </div>
-        )}
+        <div>
+          <label className="block text-[10px] text-[var(--dim)] mb-1">TIME STEP (SEC)</label>
+          <input
+            type="number"
+            value={config.timestep_seconds}
+            onChange={(e) => setConfig({ ...config, timestep_seconds: parseFloat(e.target.value) || 60 })}
+            className="input-field"
+          />
+        </div>
       </div>
 
       <div className="p-3 border-t border-[var(--border)]">
         <button
-          onClick={() => apiClient.simulate(config)}
+          onClick={handleRunSimulation}
           disabled={status === 'running'}
           className="btn-terminal w-full"
         >
@@ -107,7 +70,7 @@ export function SimulationConfigPanel() {
       {status === 'running' && (
         <div className="p-3 border-t border-[var(--border)]">
           <div className="text-[11px] text-[var(--high)] animate-pulse">
-            > COMPUTING COLLISION PROBABILITIES...
+            &gt; COMPUTING COLLISION PROBABILITIES...
           </div>
         </div>
       )}
@@ -115,7 +78,7 @@ export function SimulationConfigPanel() {
       {status === 'error' && (
         <div className="p-3 border-t border-[var(--border)]">
           <p className="text-[11px] text-[var(--critical)]">
-            > SIMULATION FAILED — CHECK INPUTS
+            &gt; SIMULATION FAILED — CHECK INPUTS
           </p>
         </div>
       )}

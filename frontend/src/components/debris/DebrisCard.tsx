@@ -1,5 +1,4 @@
 import type { SpaceDebris } from '../../types';
-import { RiskBadge } from '../risk/RiskBadge';
 import { useNavigate } from 'react-router-dom';
 
 interface Props {

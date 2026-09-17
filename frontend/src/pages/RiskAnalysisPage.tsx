@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSimulationStore } from '../store/simulationStore';
-import { RiskBadge } from '../components/risk/RiskBadge';
 import { RiskTable } from '../components/risk/RiskTable';
 import { KpiCards } from '../components/dashboard/KpiCards';
 
@@ -11,12 +10,12 @@ export function RiskAnalysisPage() {
   const metrics = useMemo(() => {
     if (!result) return null;
     return {
-      'Total Objects': result.total_objects_analyzed,
-      'Risks Found': result.total_risks_detected,
-      'Critical': result.risk_results.filter(r => r.risk_level === 'critical').length,
-      'High': result.risk_results.filter(r => r.risk_level === 'high').length,
-      'Moderate': result.risk_results.filter(r => r.risk_level === 'moderate').length,
-      'Low': result.risk_results.filter(r => r.risk_level === 'low').length,
+      'Total Objects': result.debris_objects.length + 1,
+      'Risks Found': result.risk_results.length,
+      'Critical': result.risk_results.filter(r => r.risk_level === 'CRITICAL').length,
+      'High': result.risk_results.filter(r => r.risk_level === 'HIGH').length,
+      'Moderate': result.risk_results.filter(r => r.risk_level === 'MODERATE').length,
+      'Low': result.risk_results.filter(r => r.risk_level === 'LOW').length,
       'Min Distance': result.risk_results.length > 0
         ? `${Math.min(...result.risk_results.map(r => r.min_distance_km)).toFixed(1)} km`
         : '—',
@@ -28,14 +27,14 @@ export function RiskAnalysisPage() {
 
   const riskDistribution = useMemo(() => {
     if (!result) return null;
-    const counts = { critical: 0, high: 0, moderate: 0, low: 0 };
-    result.risk_results.forEach(r => { counts[r.risk_level.toLowerCase() as keyof typeof counts]++; });
+    const counts = { CRITICAL: 0, HIGH: 0, MODERATE: 0, LOW: 0 };
+    result.risk_results.forEach(r => { counts[r.risk_level]++; });
     const total = result.risk_results.length || 1;
     return {
-      critical: Math.round((counts.critical / total) * 100),
-      high: Math.round((counts.high / total) * 100),
-      moderate: Math.round((counts.moderate / total) * 100),
-      low: Math.round((counts.low / total) * 100),
+      CRITICAL: Math.round((counts.CRITICAL / total) * 100),
+      HIGH: Math.round((counts.HIGH / total) * 100),
+      MODERATE: Math.round((counts.MODERATE / total) * 100),
+      LOW: Math.round((counts.LOW / total) * 100),
       raw: counts,
     };
   }, [result]);
@@ -67,7 +66,7 @@ export function RiskAnalysisPage() {
           'text-[var(--dim)]'
         }>
           {status === 'running' ? 'COMPUTING...' :
-           status === 'complete' ? `${result?.total_risks_detected ?? 0} RISKS DETECTED` :
+           status === 'complete' ? `${result?.risk_results?.length ?? 0} RISKS DETECTED` :
            status === 'error' ? 'ERROR — CHECK INPUTS' :
            'AWAITING SIMULATION'}
         </span>
@@ -111,17 +110,17 @@ export function RiskAnalysisPage() {
               <div className="border border-[var(--border)] p-4">
                 <p className="section-title">RISK DISTRIBUTION</p>
                 <div className="space-y-2">
-                  {(['critical', 'high', 'moderate', 'low'] as const).map(level => (
+                  {(['CRITICAL', 'HIGH', 'MODERATE', 'LOW'] as const).map(level => (
                     <div key={level} className="flex items-center gap-3 text-[11px]">
-                      <span className={`w-20 ${level === 'critical' ? 'risk-critical' : level === 'high' ? 'risk-high' : 'text-[var(--dim)]'}`}>
-                        {level.toUpperCase()}
+                      <span className={`w-20 ${level === 'CRITICAL' ? 'risk-critical' : level === 'HIGH' ? 'risk-high' : 'text-[var(--dim)]'}`}>
+                        {level}
                       </span>
                       <div className="flex-1 h-2 border border-[var(--border)] bg-[var(--bg)]">
                         <div
                           className={`h-full ${
-                            level === 'critical' ? 'bg-[var(--critical)]' :
-                            level === 'high' ? 'bg-[var(--high)]' :
-                            level === 'moderate' ? 'bg-[var(--muted)]' :
+                            level === 'CRITICAL' ? 'bg-[var(--critical)]' :
+                            level === 'HIGH' ? 'bg-[var(--high)]' :
+                            level === 'MODERATE' ? 'bg-[var(--muted)]' :
                             'bg-[#404040]'
                           }`}
                           style={{ width: `${riskDistribution[level]}%` }}

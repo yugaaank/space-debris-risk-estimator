@@ -7,13 +7,6 @@ interface Props {
   compact?: boolean;
 }
 
-function formatTime(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
 export function RiskTable({ risks, showObject = false, compact = false }: Props) {
   return (
     <div className="overflow-auto border border-[var(--border)]">

@@ -102,5 +102,15 @@ export interface HealthStatus {
   version: string;
 }
 
+export interface SpaceDebris {
+  id: string;
+  name: string;
+  altitude: number;
+  inclination: number;
+  period_minutes: number;
+  ascending_node_deg: number;
+  object_type: string;
+}
+
 export type SimulationStatus = 'idle' | 'running' | 'complete' | 'error';
 export type PlayState = 'playing' | 'paused' | 'stopped';
